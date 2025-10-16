@@ -1,0 +1,106 @@
+
+max_steps: 30_000  # UC 데이터는 보통 Matrix City보다 작아서 step 수 줄임
+
+data:
+  train_max_num_images_to_cache: 2048  # UC 데이터 크기에 맞게 조정
+  parser:
+    class_path: internal.dataparsers.colmap_dataparser.Colmap  # UC 데이터는 보통 COLMAP 형식
+    init_args:
+      data.path: "data/uc_gaussian"  # UC 데이터 경로
+      scale_factor: 1.0
+      eval_mode: "fraction"
+      eval_fraction: 0.1
+
+model:
+  gaussian:
+    sh_degree: 3  # Adaptive SH용 고차 SH
+    optimization:
+      spatial_lr_scale: 1.0  # UC 데이터는 보통 Matrix City보다 작은 스케일
+      
+      # 학습률들 - UC 데이터에 맞게 조정
+      means_lr_init: 0.00016
+      means_lr_scheduler:
+        class_path: ExponentialDecayScheduler
+        init_args:
+          lr_final: 0.0000016
+          max_steps: 20_000
+      shs_dc_lr: 0.0025
+      shs_rest_lr: 0.000125  # 0.0025 / 20
+      opacities_lr: 0.05
+      scales_lr: 0.005
+      rotations_lr: 0.001
+      # Adaptive SH MLP 학습률
+      adaptive_sh_lr: 0.001
+      adaptive_sh_scheduler:
+        class_path: ExponentialDecayScheduler
+        init_args:
+          lr_final: 0.0001
+          max_steps: 20_000
+  density:
+    densify_grad_threshold: 0.0002  # UC 데이터는 좀 더 aggressive하게
+    densify_until_iter: 15_000
+    prune_opacity_threshold: 0.005
+    percent_dense: 0.01
+
+
+
+
+renderer:
+  class_path: internal.renderers.ciga_renderer.AdaptiveGSPlatRenderer
+  init_args:
+    block_size: 16
+    anti_aliased: True
+    kernel_size: 0.3
+    # Adaptive SH 설정
+    adaptive_sh_enabled: True
+    adaptive_sh_config:
+      L_max: 3         
+      hidden: 32      
+      B_d: 32       
+      B_phi: 32     
+      ema: 0.9        
+      use_lut: False 
+      device: cuda
+     
+      lambda_sh: 0.005    
+      lambda_gate: 0.001  
+      lambda_tv: 0.002  
+      lambda_mono: 0.005  
+
+
+
+loss:
+  adaptive_sh_weight: 0.05  
+
+
+inference:
+  use_adaptive_lut: True
+  lut_switch_step: 25000  
+
+
+logging:
+  log_adaptive_weights: True
+  log_distance_stats: True
+  log_adaptive_loss_components: True
+  log_interval: 50 
+
+
+experiment:
+  name: "uc-gaussian-adaptive-sh"
+  tags:
+    - "adaptive_sh"
+    - "uc_gaussian"
+    - "small_scale_scene"
+  notes: "Adaptive SH for UC Gaussian dataset - smaller scale scene testing"
+
+
+eval:
+  eval_interval: 1000
+  save_interval: 5000
+  num_eval_images: 50
+
+
+checkpoint:
+  save_top_k: 3
+  monitor: "val/psnr"
+  mode: "max"
