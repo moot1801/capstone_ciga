@@ -105,6 +105,29 @@ class CityGSV2MetricsModule(GS2DMetricsImpl):
         d_reg_weight = self.get_weight(step)
         d_reg = self.get_inverse_depth_metric(batch, outputs) * d_reg_weight
 
+
+    #  # --- SH 계수 penalty 커스텀 항 추가 --- #
+    #     # GaussianModel에서 features 추출
+    #     shs = gaussian_model.get_features()  # shape: [N, 3, (deg+1)**2]
+    #     sh_deg = 3  # 현재 예시, 실제 deg는 config/hparams 등에서 결정
+    #     # 2차, 3차 index
+    #     degree_counts = [1, 3, 5, 7]
+    #     idx_2nd = sum(degree_counts[:2])     # 0,1차까지 합
+    #     idx_3rd = sum(degree_counts[:3])     # 0,1,2차까지 합
+    #     high_order_sh = shs[..., idx_2nd:idx_3rd+degree_counts[3]]  # 2차수 이상만 추출
+
+    #     # abs 값이 threshold 이하일 때 penalty(예시: threshold=0.1)
+    #     penalty = (0.1 - high_order_sh.abs()).clamp(min=0).mean()
+    #     lambda_sh_penalty = 1.0  # 하이퍼파라메터: 람다 값 조정 필요
+
+    #     metrics["sh_penalty"] = penalty
+    #     pbar["sh_penalty"] = True
+
+    #     # metrics["loss"]에 더해주는 위치
+    #     metrics["loss"] = metrics["loss"] + lambda_sh_penalty * penalty
+    #     # -------------------------------------- #
+
+
         metrics["d_reg"] = d_reg
         metrics["d_w"] = d_reg_weight
         pbar["d_reg"] = True

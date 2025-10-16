@@ -5,13 +5,13 @@ import numpy as np
 
 @dataclass
 class TCNNEncodingConfig:
-    type: Literal["frequency", "hashgrid", "densegrid", "identity", "SphericalHarmonics", "none"] = "hashgrid"
+    type: Literal["frequency", "hashgrid", "densegrid", "identity", "SphericalHarmonics", "none"] = "hashgrid"  #사용할 인코딩 방식(이중 하나)
     # frequency config
-    n_frequencies: int = 4
-    # Spherical Harmonics config
+    n_frequencies: int = 4     #frequency encoding일 때 주파수 개수
+    # Spherical Harmonics config  사용할 차수(4차 = 0~3)
     degree: int = 4
     # hashgrid config
-    n_features_per_level: int = 4
+    n_features_per_level: int = 4  #각 레벨당 피처 수
     log2_hashmap_size: int = 19
     max_resolution: int = 2048
     # both hashgrid and densegrid config
@@ -20,8 +20,9 @@ class TCNNEncodingConfig:
     # densegrid config
     per_level_scale: float = 1.405
 
-    def get_encoder_config(self, n_input_channels: int):
-        if self.type == "frequency":
+    def get_encoder_config(self, n_input_channels: int):  
+        #입력채널 수를 받아서 선택된 인코딩 방식에 맞는 딕셔너리를 반환
+        if self.type == "frequency":   #인코딩 방식 별로 필요한 파라미터 자동 세팅
             return {
                 "n_dims_to_encode": n_input_channels,
                 "otype": "Frequency",

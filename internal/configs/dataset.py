@@ -1,8 +1,8 @@
 """
 This file is kept only for compatible purpose.
-All values are ignored.
+All values are ignored.************
 
-DataParser configs have been move to `internal/dataparsers`.
+DataParser configs have been move to `internal/dataparsers`.**********
 """
 
 from typing import Optional, Literal

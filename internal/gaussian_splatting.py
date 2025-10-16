@@ -31,7 +31,7 @@ from jsonargparse import lazy_instance
 
 from internal.utils.sh_utils import eval_sh
 from internal.utils.graphics_utils import store_ply
-
+from internal.models.sh_core import AdaptiveSHLoss
 
 class GaussianSplatting(LightningModule):
     def __init__(
@@ -102,6 +102,10 @@ class GaussianSplatting(LightningModule):
         self.on_train_start_hooks: List[Callable[[GaussianModel, Self], None]] = []
         self.on_after_backward_hooks: List[Callable[[Dict, Any, GaussianModel, int, Self], None]] = []
         self.on_train_batch_end_hooks: List[Callable[[Dict, Any, GaussianModel, int, Self], None]] = []
+
+
+        #self.adaptive_loss_fn = AdaptiveSHLoss(**config.adaptive_loss_params) 
+
 
     def log_metrics(
             self,
@@ -176,6 +180,15 @@ class GaussianSplatting(LightningModule):
         self.renderer.setup(stage=stage, lightning_module=self)
         self.metric.setup(stage=stage, pl_module=self)
         self.density_controller.setup(stage=stage, pl_module=self)
+
+        self.adaptive_loss_fn = AdaptiveSHLoss(
+                    lambda_sh=0.01,   
+                    lambda_gate=0.001,
+                    lambda_tv=0.005,
+                    lambda_mono=0.01,
+                    aerial_threshold=math.pi/6
+                ).to(self.device)
+
 
         # use different image log method based on the logger type
         self.log_image = None
@@ -361,7 +374,52 @@ class GaussianSplatting(LightningModule):
         outputs = self(camera)
         # metrics
         metrics, prog_bar = self.metric.get_train_metrics(self, self.gaussian_model, global_step, batch, outputs)
+        
+
+
+
+        can_adapt = ("adaptive_sh_info" in outputs 
+                 and "sh_weights" in outputs 
+                 and ("shs" in outputs or "sh_coeffs" in outputs))
+
+        if hasattr(self, "adaptive_loss_fn") and can_adapt:
+            base_l_rgb = metrics["loss"]              # photometric(base) 손실
+            shs = outputs.get("shs", outputs.get("sh_coeffs"))
+            sh_weights = outputs["sh_weights"]
+            nadir_angles = outputs["adaptive_sh_info"]["nadir_angles"]
+            distances = outputs["adaptive_sh_info"]["distances"]
+            gaussian_pos = self.gaussian_model.get_xyz
+
+            shs = self.gaussian_model.get_features.transpose(1, 2)
+
+            adaptive_losses = self.adaptive_loss_fn(
+                base_l_rgb=base_l_rgb,
+                shs=shs,
+                sh_weights=sh_weights,
+                nadir_angles=nadir_angles,
+                distances=distances,
+                gaussian_pos=gaussian_pos
+            )
+
+            # 최종 loss로 교체
+            metrics["loss"] = adaptive_losses["total_loss"]
+
+            # 모니터링용으로 각 항목도 로깅
+            metrics.update({
+                "L_RGB": adaptive_losses["L_RGB"],
+                "L_SH_ratio": adaptive_losses["L_SH_ratio"],
+                "L_gate": adaptive_losses["L_gate"],
+                "L_TV": adaptive_losses["L_TV"],
+                "L_mono": adaptive_losses["L_mono"],
+            })
+            # 프로그레스바에 노이즈 없이 몇 개만 노출
+            prog_bar.update({
+                "L_RGB": False, "L_SH_ratio": False, "L_gate": False, "L_TV": False, "L_mono": False
+            })
+            
+
         self.log_metrics(metrics, prog_bar, prefix="train", on_step=True, on_epoch=False)
+
 
         # log learning rate and gaussian count every 100 iterations (without plus one step)
         if self.trainer.global_step % 100 == 0:
