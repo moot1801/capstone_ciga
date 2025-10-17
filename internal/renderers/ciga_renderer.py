@@ -1,24 +1,3 @@
-#
-
-# Copyright (C) 2023, Inria
-
-# GRAPHDECO research group, https://team.inria.fr/graphdeco
-
-# All rights reserved.
-
-#
-
-# This software is free for non-commercial, research and evaluation use
-
-# under the terms of the LICENSE.md file.
-
-#
-
-# For inquiries contact  george.drettakis@inria.fr
-
-#
-
-
 
 import math
 import torch
@@ -71,43 +50,25 @@ class CigaRenderer(Renderer):
 
 
     def forward(
-
             self,
-
             viewpoint_camera: Camera,
-
             pc: GaussianModel,
-
             bg_color: torch.Tensor,
-
             scaling_modifier=1.0,
-
             override_color=None,
-
             render_types: list = None,
 
     ):
 
         """
-
         Render the scene.
-
-
-
         Background tensor (bg_color) must be on GPU!
-
         """
 
-
-
         if render_types is None:
-
             render_types = ["rgb"]
 
         assert len(render_types) == 1, "Only single type is allowed currently"
-
-
-
         rendered_image_key = "render"
 
         if "depth" in render_types:
