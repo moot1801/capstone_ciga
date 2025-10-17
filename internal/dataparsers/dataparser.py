@@ -7,8 +7,6 @@ import torch
 from internal.cameras.cameras import Cameras
 from internal.configs.instantiate_config import InstantiatableConfig
 
-## 전처리 결과의 데이터 구조랑 인터페이스 정의 (실제 저장x, 어떤 형태로 저장되는지, 저장될 객체 정의)
-
 
 @dataclass
 class ImageSet:

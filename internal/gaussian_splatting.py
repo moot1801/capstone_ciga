@@ -33,6 +33,9 @@ from internal.utils.sh_utils import eval_sh
 from internal.utils.graphics_utils import store_ply
 from internal.models.sh_core import AdaptiveSHLoss
 
+#.
+import math
+
 class GaussianSplatting(LightningModule):
     def __init__(
             self,
