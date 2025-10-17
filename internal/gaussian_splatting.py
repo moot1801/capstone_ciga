@@ -67,7 +67,10 @@ class GaussianSplatting(LightningModule):
         self.gaussian_model = gaussian.instantiate()
         self.frozen_gaussians = None
         if self.hparams["MLP"]:
-            self.ciga_mlp = CigaMLP(in_features=7, sh_max_degree=self.gaussian_model.max_sh_degree).to(self.device)
+            self.mlp_model = CigaMLP.instantiate(
+                in_features=7,
+                sh_max_degree = self.gaussian_model.get_max_sh_degree()
+            )
         else: 
             self.ciga_mlp = None
 
@@ -183,6 +186,14 @@ class GaussianSplatting(LightningModule):
         self.renderer.setup(stage=stage, lightning_module=self)
         self.metric.setup(stage=stage, pl_module=self)
         self.density_controller.setup(stage=stage, pl_module=self)
+
+
+        print("222")
+        print(self.hparams["MLP"])
+        if self.hparams["MLP"]==True:
+            self.renderer.set_mlp(self.mlp_model)
+        else:
+            self.renderer.set_mlp(None)
 
         # use different image log method based on the logger type
         self.log_image = None
