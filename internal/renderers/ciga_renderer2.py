@@ -117,29 +117,6 @@ class CigaRenderer(Renderer):
             means3D, 
             L=pc.max_sh_degree
             )
-        
-        #test----------------------------------------------------------------
-        #cams = viewpoint_camera
-        #cam_pos = cams.camera_center
-        """
-        print(f"cam_pos:{cam_pos.shape}\n"
-              f"{cam_pos}\n"
-              f"w2c:{cams.world_to_camera.shape}\n"
-              f"{cams.world_to_camera}\n")
-                     ->  campos는 카메라 중심 좌표 (배치가 1이라 shape이 3인거임)
-                            w2c의 왼쪽 상단 3*3은 회전 R, 3행 0열~2열 : t
-                             => 월드좌표계에서 카메라 좌표계로 변환할 때 사용
-        am_pos:torch.Size([3])
-        tensor([-5.5859e-03, -1.8000e+00, -2.1062e-13], device='cuda:0') 
-        w2c:torch.Size([4, 4])
-        tensor([[ 2.2204e-16,  0.0000e+00, -1.0000e+00,  0.0000e+00],
-                [ 0.0000e+00,  1.0000e+00,  0.0000e+00,  0.0000e+00],
-                [ 1.0000e+00,  0.0000e+00,  2.2204e-16,  0.0000e+00],
-                [ 2.1062e-13,  1.8000e+00, -5.5859e-03,  1.0000e+00]], device='cuda:0')
-        """
-    
-        #print("means: ", means3D.shape, means3D)
-        #test----------------------------------------------------------------
 
         # Rasterize visible Gaussians to image, obtain their radii (on screen).
         rendered_image, radii = rasterizer(
@@ -261,52 +238,54 @@ class CigaRenderer(Renderer):
 
         assert C == 3 and K == (L + 1) ** 2
 
-        # 가시 가우시안 인덱스
-        if self.mlp is None:
-            vis_mask = torch.ones(N, dtype=torch.bool, device=device)
-            vis_idx = torch.arange(N, device=device)
-        else:
+        # 가시 가우시안 인덱스 <- 점검 필요 : 가시 가우시안을 뽑아내지 못하는듯함
+        if isinstance(self.mlp, CigaMLP):
             with torch.no_grad(): vis_mask = rasterizer.markVisible(means3D) # -> (N,) bool 텐서 반환
             vis_idx = torch.where(vis_mask)[0]
+        else:
+            vis_mask = torch.ones(N, dtype=torch.bool, device=device)
+            vis_idx = torch.arange(N, device=device)
             
 
         means3D_vis = means3D[vis_idx]  # 가시 가우시안 좌표
         shs_vis = shs[vis_idx]  # 가시 가우시안 SH 계수
-        
+        print("vis:", vis_idx)
+        print("GT:", N)
         # sh 가중치(MLP 결과)를 담을 더미 텐서
         sh_weight = torch.zeros(N, L+1, C, device=device, dtype=dtype)
 
         if isinstance(self.mlp, CigaMLP):
-            self.mlp.to_input(VC, means3D_vis)
+            d = self.mlp.to_input(VC, means3D_vis)
+            # torch.Size([219439, 3]) torch.Size([219439, 1]) torch.Size([219439, 3])
+            #print(d['cam_pos'].shape, d['dis'].shape, d['dir'].shape)
 
-            sh_weight = self.mlp(
-                # 카메라 좌표
-                # 거리
-                # 방향
-            )
+            x = torch.cat([d['cam_pos'], d['dis'], d['dir']], dim=1)
+            #print("xxx", x.shape) # torch.Size([219439, 7])
+            sh_weight = self.mlp(x)
+
         else:
             print("!!!")
         
         # 밴드별 가중치를 계수별 가중치로 변환
-        #print("shs_weight_MLP:", sh_weight.shape)  # -> shs_weight_MLP: torch.Size([219439, 4, 3])
         sh_weight = self.band_flatten(sh_weight, L)
-
         # sh 계수와 가중치 곱 (MLP 출력 형태에 따라 연산 수정 필요)
-        # shs shape         = [gaussian 수, 3(RGB), (max_sh_degree+1)^2]
-        # sh_weight shape   = [가시 가우시안 수, 3(RGB), max_sh_degree+1]
+        # in        : sh_weight shape   = [가시 가우시안 수, L+1] : L=sh_max_degree
+        #         ▼ band_flatten
+        # return    : sh_weight shape   = [gaussian 수, (L+1)^2, 3(RGB)]
+        
         shs_out = shs.clone()
         shs_out = shs * sh_weight
         return shs_out
 
     def band_flatten(self, sh_weight, L):
         """
-        sh_weight: [N, L+1, 3]
+        sh_weight: [N, L+1]
         반환:      [N, (L+1)^2, 3]
         """
         import torch
 
-        N, B, C = sh_weight.shape
-        assert C == 3 and B == L + 1, f"got {sh_weight.shape}, expected [N,{L+1},3]"
+        N, B = sh_weight.shape
+        assert B == L + 1, f"got {sh_weight.shape}, expected [N,{L+1},3]"
 
         # 각 밴드의 계수 개수: 2l+1  (0차:1, 1차:3, ..., L차:2L+1)
         band_sizes = torch.tensor([2 * l + 1 for l in range(L + 1)],
@@ -321,6 +300,8 @@ class CigaRenderer(Renderer):
         # 밴드 축(dim=1) 기준으로 인덱싱 → [N, K, 3]
         weights_coeff = sh_weight.index_select(dim=1, index=band_of_coeff)
         
+        weights_coeff = weights_coeff.unsqueeze(-1).expand(-1, -1, 3)
+
         return weights_coeff
 
         

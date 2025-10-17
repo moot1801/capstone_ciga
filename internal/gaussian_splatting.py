@@ -187,9 +187,6 @@ class GaussianSplatting(LightningModule):
         self.metric.setup(stage=stage, pl_module=self)
         self.density_controller.setup(stage=stage, pl_module=self)
 
-
-        print("222")
-        print(self.hparams["MLP"])
         if self.hparams["MLP"]==True:
             self.renderer.set_mlp(self.mlp_model)
         else:

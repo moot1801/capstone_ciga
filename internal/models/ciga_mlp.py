@@ -3,6 +3,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
 from sklearn.datasets import load_breast_cancer
 
 # input : 위치: x, y, z / 거리(가우시안-카메라): s / 방향 : 카메라 dx, dy, dz
@@ -22,7 +23,7 @@ class CigaMLP(nn.Module):
       nn.ReLU(),
       nn.Linear(hidden, hidden, bias=True),
       nn.ReLU(),
-      nn.Linear(hidden, sh_max_degree, bias=True)
+      nn.Linear(hidden, sh_max_degree+1, bias=True)
     )
 
 
@@ -34,25 +35,16 @@ class CigaMLP(nn.Module):
     return cls(**kwargs)
   
   def to_input(self, camera, gaussian_pos):
-    """
-        print(f"cam_pos:{cam_pos.shape}\n"
-              f"{cam_pos}\n"
-              f"w2c:{cams.world_to_camera.shape}\n"
-              f"{cams.world_to_camera}\n")
-                     ->  campos는 카메라 중심 좌표 (배치가 1이라 shape이 3인거임)
-                            w2c의 왼쪽 상단 3*3은 회전 R, 3행 0열~2열 : t
-                             => 월드좌표계에서 카메라 좌표계로 변환할 때 사용
-        am_pos:torch.Size([3])
-        tensor([-5.5859e-03, -1.8000e+00, -2.1062e-13], device='cuda:0') 
-        w2c:torch.Size([4, 4])
-        tensor([[ 2.2204e-16,  0.0000e+00, -1.0000e+00,  0.0000e+00],
-                [ 0.0000e+00,  1.0000e+00,  0.0000e+00,  0.0000e+00],
-                [ 1.0000e+00,  0.0000e+00,  2.2204e-16,  0.0000e+00],
-                [ 2.1062e-13,  1.8000e+00, -5.5859e-03,  1.0000e+00]], device='cuda:0')
-        """
-    N, 3 = gaussian_pos.shape
-  
+    N = (gaussian_pos.shape)[0]
+    # 카메라 위치
     cam_pos = camera.camera_center
+    cam_pos = cam_pos.unsqueeze(0).expand(N, -1)
+    # 카메라-가우시안 거리
+    dis = (gaussian_pos - cam_pos).norm(dim=-1, keepdim=True)
 
-
-    return {'cam_pos': ,'dis': ,'dir': }
+    # 카메라-가우시안 방향
+    R = camera.world_to_camera[:3, :3]
+    dir = torch.tensor([0.0, 0.0, 1.0], device=gaussian_pos.device, dtype=gaussian_pos.dtype) @ R.t()
+    dir = F.normalize(dir, dim=0)
+    dir = F.normalize(gaussian_pos - cam_pos, dim=1)
+    return {'cam_pos': cam_pos, 'dis': dis, 'dir': dir}
