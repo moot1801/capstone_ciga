@@ -1,0 +1,33 @@
+model:
+  gaussian:
+    init_args:
+      sh_degree: 3
+  mlp_cfg:
+    use: true
+    sch: false
+    lr: 0.005
+    weight_decay: 0
+    milestones: []
+    gamma: 0.5
+  save_iterations: []
+  renderer:
+    class_path: internal.renderers.ciga_trim_renderer.CigaTrimRenderer
+    init_args:
+      convert_SHs_python: false
+      contribution_prune_from_iter: 5000
+      contribution_prune_interval: 1000
+      prune_ratio: 0.02            # 매 프루닝 시 제거 비율
+      v_pow: 2.0                   # 중요도 계산 가중
+      K: 8                         # 최근 K회 평균
+      diable_trimming: false      # 끄고 싶으면 true
+
+trainer:
+  val_check_interval: 0.25
+  max_steps: 30000
+
+data:
+  path: /home/jinholee/Ciga/data/dataset/SF/traina20g1.8
+  parser:
+    class_path: EstimatedDepthBlockColmap
+    init_args:
+      down_sample_factor: 1.0
