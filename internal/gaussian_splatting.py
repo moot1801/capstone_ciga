@@ -57,7 +57,7 @@ class GaussianSplatting(LightningModule):
             initialize_from: str = None,
             overwrite_config: bool = True,
             renderer_output_types: Optional[List[str]] = None,
-            MLP : bool = False,
+            mlp_cfg : Dict[str, Any] = None
     ) -> None:
         super().__init__()
         self.automatic_optimization = False
@@ -66,13 +66,25 @@ class GaussianSplatting(LightningModule):
         # setup models
         self.gaussian_model = gaussian.instantiate()
         self.frozen_gaussians = None
-        if self.hparams["MLP"]:
+        
+        # setup MLP
+        self.mlp = bool(self.mlp_cfg.get('use', False))
+        self.sch = bool(self.mlp_cfg.get('sch', False))
+        self.mlp_options = {
+            'mlp_lr' : float(self.mlp_cfg.get('lr', 5e-3)),
+            'mlp_weight_decay' : float(self.mlp_cfg.get('weight_decay', 0.0)), 
+            'mlp_milestones' : self.mlp_cfg.get('milestones', []),
+            'mlp_gamma' : float(self.mlp_cfg.get('gamma', 0.5)),    
+        }
+
+        if self.mlp:
             self.mlp_model = CigaMLP.instantiate(
                 in_features=7,
                 sh_max_degree = self.gaussian_model.get_max_sh_degree()
             )
         else: 
-            self.ciga_mlp = None
+            self.mlp_model = None
+
 
         self.light_gaussian_hparams = light_gaussian
 
@@ -107,7 +119,7 @@ class GaussianSplatting(LightningModule):
         self.image_saving_threads = []
 
         self.val_metrics: List[Tuple[str, Dict]] = []
-
+        
         # hooks
         self.on_train_start_hooks: List[Callable[[GaussianModel, Self], None]] = []
         self.on_after_backward_hooks: List[Callable[[Dict, Any, GaussianModel, int, Self], None]] = []
@@ -187,7 +199,7 @@ class GaussianSplatting(LightningModule):
         self.metric.setup(stage=stage, pl_module=self)
         self.density_controller.setup(stage=stage, pl_module=self)
 
-        if self.hparams["MLP"]==True:
+        if self.mlp:
             self.renderer.set_mlp(self.mlp_model)
         else:
             self.renderer.set_mlp(None)
@@ -695,6 +707,7 @@ class GaussianSplatting(LightningModule):
         # gaussian model optimizer and scheduler setup
         gaussian_optimizers, gaussian_schedulers = self.gaussian_model.training_setup(self)
         self.gaussian_optimizers = gaussian_optimizers
+        
         if isinstance(self.gaussian_optimizers, list) is False:
             self.gaussian_optimizers = [self.gaussian_optimizers]
         add_optimizers_and_schedulers(gaussian_optimizers, gaussian_schedulers)
@@ -710,7 +723,20 @@ class GaussianSplatting(LightningModule):
         # metric optimizer and scheduler setup
         metric_optimizer, metric_scheduler = self.metric.training_setup(self)
         add_optimizers_and_schedulers(metric_optimizer, metric_scheduler)
-
+        if self.mlp:
+            mlp_optimizer = torch.optim.Adam(
+                self.mlp_model.parameters(), 
+                lr=self.mlp_options['mlp_lr'], 
+                weight_decay=self.mlp_options['mlp_weight_decay']
+                )
+            mlp_scaheduler = torch.optim.lr_scheduler.MultiStepLR(
+                mlp_optimizer, 
+                milestones=self.mlp_options['mlp_milestones'], 
+                gamma=self.mlp_options['mlp_gamma']
+                )
+            optimizers.append(mlp_optimizer)
+            if self.sch:
+                schedulers.append(mlp_scaheduler)
         return optimizers, schedulers
 
     def density_updated_by_renderer(self):

@@ -140,7 +140,7 @@ class CigaRenderer(Renderer):
         }
 
     def set_mlp(self, mlp: nn.Module):
-        self.mlp=mlp
+        self.mlp_model = mlp
 
     @staticmethod
     def render(
@@ -239,7 +239,7 @@ class CigaRenderer(Renderer):
         assert C == 3 and K == (L + 1) ** 2
 
         # 가시 가우시안 인덱스 <- 점검 필요 : 가시 가우시안을 뽑아내지 못하는듯함
-        if isinstance(self.mlp, CigaMLP):
+        if isinstance(self.mlp_model, CigaMLP):
             with torch.no_grad(): vis_mask = rasterizer.markVisible(means3D) # -> (N,) bool 텐서 반환
             vis_idx = torch.where(vis_mask)[0]
         else:
@@ -254,14 +254,14 @@ class CigaRenderer(Renderer):
         # sh 가중치(MLP 결과)를 담을 더미 텐서
         sh_weight = torch.zeros(N, L+1, C, device=device, dtype=dtype)
 
-        if isinstance(self.mlp, CigaMLP):
+        if isinstance(self.mlp_model, CigaMLP):
             d = self.mlp.to_input(VC, means3D_vis)
             # torch.Size([219439, 3]) torch.Size([219439, 1]) torch.Size([219439, 3])
             #print(d['cam_pos'].shape, d['dis'].shape, d['dir'].shape)
 
             x = torch.cat([d['cam_pos'], d['dis'], d['dir']], dim=1)
             #print("xxx", x.shape) # torch.Size([219439, 7])
-            sh_weight = self.mlp(x)
+            sh_weight = self.mlp_model(x)
 
         else:
             print("!!!")
