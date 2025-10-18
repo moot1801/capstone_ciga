@@ -16,6 +16,8 @@ from internal.utils.sh_utils import eval_sh
 from pathlib import Path
 from internal.models.ciga_mlp import CigaMLP
 import torch.nn as nn
+from log import print_to
+
 
 class CigaRenderer(Renderer):
     def __init__(self, compute_cov3D_python: bool = False, convert_SHs_python: bool = False):
@@ -238,7 +240,7 @@ class CigaRenderer(Renderer):
 
         assert C == 3 and K == (L + 1) ** 2
 
-        # 가시 가우시안 인덱스 <- 점검 필요 : 가시 가우시안을 뽑아내지 못하는듯함
+        # 가시 가우시안 
         if isinstance(self.mlp_model, CigaMLP):
             with torch.no_grad(): vis_mask = rasterizer.markVisible(means3D) # -> (N,) bool 텐서 반환
             vis_idx = torch.where(vis_mask)[0]
@@ -249,13 +251,12 @@ class CigaRenderer(Renderer):
 
         means3D_vis = means3D[vis_idx]  # 가시 가우시안 좌표
         shs_vis = shs[vis_idx]  # 가시 가우시안 SH 계수
-        print("vis:", vis_idx)
-        print("GT:", N)
+        
         # sh 가중치(MLP 결과)를 담을 더미 텐서
         sh_weight = torch.zeros(N, L+1, C, device=device, dtype=dtype)
 
         if isinstance(self.mlp_model, CigaMLP):
-            d = self.mlp.to_input(VC, means3D_vis)
+            d = self.mlp_model.to_input(VC, means3D_vis)
             # torch.Size([219439, 3]) torch.Size([219439, 1]) torch.Size([219439, 3])
             #print(d['cam_pos'].shape, d['dis'].shape, d['dir'].shape)
 
@@ -274,7 +275,8 @@ class CigaRenderer(Renderer):
         # return    : sh_weight shape   = [gaussian 수, (L+1)^2, 3(RGB)]
         
         shs_out = shs.clone()
-        shs_out = shs * sh_weight
+        shs_out[vis_idx] = shs[vis_idx] * sh_weight
+        print_to("CR_shape.txt", "\nsh_w: ", sh_weight.shape, "\nshs_vis: ",shs_vis.shape, "\nshs: ", shs.shape, "\nshs_out:", shs_out.shape)
         return shs_out
 
     def band_flatten(self, sh_weight, L):

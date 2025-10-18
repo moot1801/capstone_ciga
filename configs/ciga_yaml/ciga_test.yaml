@@ -2,7 +2,9 @@ model:
   gaussian:
     init_args:
       sh_degree: 3
-  MLP: true
+  mlp_cfg:
+    use: true
+    
   renderer:
     class_path: internal.renderers.ciga_renderer2.CigaRenderer
 
