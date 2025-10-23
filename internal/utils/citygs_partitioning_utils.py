@@ -361,7 +361,13 @@ class CityGSPartitioning(Partitioning):
             partition_xy_offset = torch.dstack([grid_x[1:, 1:], grid_y[1:, 1:]])
             scene_config.partition_size = (partition_xy_offset - partition_xy).reshape(-1, 2)
         else:
-            scene_config.partition_size = torch.tensor([1 / block_dim[0], 1 / block_dim[1]])
+            num_parts = torch.prod(partition_count).item()
+            base = torch.tensor(
+                [1.0 / float(block_dim[0]), 1.0 / float(block_dim[1])],
+                device=points.device,
+                dtype=points.dtype,
+            )
+            scene_config.partition_size = base.repeat(num_parts, 1)  # [num_parts, 2]
 
         partition_id = torch.dstack([idx_x, idx_y])
 

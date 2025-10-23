@@ -14,8 +14,9 @@ def nuke_dir(recreate: bool = True):
     if recreate:
         d.mkdir(parents=True, exist_ok=True)        
 
-def log_weight_stats(module, file_path="/home/jinholee/Ciga/logs/mlp_weight_stats.txt"):
+def log_weight_stats(module, file_path="/home/jinholee/Ciga/logs/mlp_weight_stats.txt", step=-1):
     with open(file_path, "a", encoding="utf-8") as f:
+        f.write(f"step: {step}\n")
         for name, p in module.named_parameters():
             t = p.detach()
             f.write(

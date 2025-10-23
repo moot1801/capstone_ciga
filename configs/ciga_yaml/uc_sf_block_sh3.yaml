@@ -6,6 +6,6 @@ data:
   parser:
     class_path: EstimatedDepthBlockColmap
     init_args:
-      block_dim: [1500, 1500]      
+      block_dim: [200, 200]      
       content_threshold: 0.08    
       aabb: [-1000.0, -1000.0, 1000.0, 1000.0] 

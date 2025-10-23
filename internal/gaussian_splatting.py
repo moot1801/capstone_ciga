@@ -34,7 +34,7 @@ from internal.utils.graphics_utils import store_ply
 
 #ciga
 from internal.models.ciga_mlp import CigaMLP
-from log import print_to, log_weight_stats
+from log import log_weight_stats, nuke_dir
 
 class GaussianSplatting(LightningModule):
     def __init__(
@@ -58,7 +58,8 @@ class GaussianSplatting(LightningModule):
             initialize_from: str = None,
             overwrite_config: bool = True,
             renderer_output_types: Optional[List[str]] = None,
-            mlp_cfg : Dict[str, Any] = None
+            mlp_cfg : Dict[str, Any] = None,
+            log_cfg : Dict[str, Any] = None
     ) -> None:
         super().__init__()
         self.automatic_optimization = False
@@ -68,9 +69,15 @@ class GaussianSplatting(LightningModule):
         self.gaussian_model = gaussian.instantiate()
         self.frozen_gaussians = None
         
-        self.mlp_cfg = self.hparams['mlp_cfg']
+        # setup log
+        self.log_cfg = self.hparams['log_cfg']
+        self.logs = {
+            'log':bool(self.log_cfg.get('log', False)),
+            'step':int(self.log_cfg.get('step', 50)),
+        }
 
         # setup MLP
+        self.mlp_cfg = self.hparams['mlp_cfg']
         self.mlp = bool(self.mlp_cfg.get('use', False))
         self.sch = bool(self.mlp_cfg.get('sch', False))
         self.mlp_options = {
@@ -189,6 +196,7 @@ class GaussianSplatting(LightningModule):
         print(f"initialize from {load_from}: sh_degree={self.gaussian_model.max_sh_degree}, overwrite_config={self.hparams['overwrite_config']}")
 
     def setup(self, stage: str):
+
         if stage == "fit":
             if self.hparams["initialize_from"] is None:
                 self.gaussian_model.setup_from_pcd(xyz=self.trainer.datamodule.point_cloud.xyz, rgb=self.trainer.datamodule.point_cloud.rgb / 255.)
@@ -206,7 +214,14 @@ class GaussianSplatting(LightningModule):
             self.renderer.set_mlp(self.mlp_model)
         else:
             self.renderer.set_mlp(None)
-
+        
+        if self.logs['log']:
+            self.renderer.set_log(True)
+            self.hparams["save_val_output"]=True
+            nuke_dir(recreate=True)
+        else:
+            self.renderer.set_log(False)
+            
         # use different image log method based on the logger type
         self.log_image = None
         if isinstance(self.logger, lightning.pytorch.loggers.TensorBoardLogger):
@@ -410,8 +425,13 @@ class GaussianSplatting(LightningModule):
                 step=self.trainer.global_step,
             )
 
-        #if self.trainer.global_step < 100:
-        #    log_weight_stats(self.mlp_model)
+        if self.trainer.global_step > self.logs['step'] and self.logs['log']:
+            self.logs['log'] = False
+            self.renderer.set_log(False)
+        if self.logs['log']:
+            log_weight_stats(self.mlp_model, step=self.trainer.global_step)
+            
+            
 
         # invoke `before_backward` interface of density controller
         self.density_controller.before_backward(
@@ -575,7 +595,7 @@ class GaussianSplatting(LightningModule):
             #         tag="{}_images/{}".format(name, image_info[0].replace("/", "_")),
             #         image_tensor=grid,
             #     )
-            #
+            
             # image_output_path = os.path.join(
             #     self.hparams["output_path"],
             #     name,

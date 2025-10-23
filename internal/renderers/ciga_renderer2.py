@@ -112,13 +112,14 @@ class CigaRenderer(Renderer):
             colors_precomp = override_color
 
         # 추가 
-        shs = self.shs_weight_MLP(
-            rasterizer, 
-            shs, 
-            viewpoint_camera, 
-            means3D, 
-            L=pc.max_sh_degree
-            )
+        if self.mlp_model is not None:
+            shs = self.shs_weight_MLP(
+                rasterizer, 
+                shs, 
+                viewpoint_camera, 
+                means3D, 
+                L=pc.max_sh_degree
+                )
 
         # Rasterize visible Gaussians to image, obtain their radii (on screen).
         rendered_image, radii = rasterizer(
@@ -257,15 +258,14 @@ class CigaRenderer(Renderer):
 
         if isinstance(self.mlp_model, CigaMLP):
             d = self.mlp_model.to_input(VC, means3D_vis)
-            # torch.Size([219439, 3]) torch.Size([219439, 1]) torch.Size([219439, 3])
-            #print(d['cam_pos'].shape, d['dis'].shape, d['dir'].shape)
-
+            if self.logging:
+                print_to("input.txt",f"\ncam_pos :{d['cam_pos'][:10,:10]}\ncam-gaus: {d['dis'][:10,:10]}\ncam_dir: {d['dir'][:10,:10]}")
             x = torch.cat([d['cam_pos'], d['dis'], d['dir']], dim=1)
-            #print("xxx", x.shape) # torch.Size([219439, 7])
+        
             sh_weight = self.mlp_model(x)
 
         else:
-            print("!!!")
+            print("CR_shs_weght_MLP")
         
         # 밴드별 가중치를 계수별 가중치로 변환
         sh_weight = self.band_flatten(sh_weight, L)
@@ -276,7 +276,8 @@ class CigaRenderer(Renderer):
         
         shs_out = shs.clone()
         shs_out[vis_idx] = shs[vis_idx] * sh_weight
-        print_to("CR_shape.txt", "\nsh_w: ", sh_weight.shape, "\nshs_vis: ",shs_vis.shape, "\nshs: ", shs.shape, "\nshs_out:", shs_out.shape)
+        if self.logging == True:
+            print_to("CR_shape.txt", "\nsh_w: ", sh_weight.shape, "\nshs_vis: ",shs_vis.shape, "\nshs: ", shs.shape, "\nshs_out:", shs_out.shape)
         return shs_out
 
     def band_flatten(self, sh_weight, L):
@@ -306,5 +307,6 @@ class CigaRenderer(Renderer):
 
         return weights_coeff
 
-        
+    def set_log(self, tf):
+        self.logging = tf
         

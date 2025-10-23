@@ -1,14 +1,22 @@
 model:
-  gaussian:
-    init_args:
-      sh_degree: 3
+  save_val_output: true
+  save_val_metrics: true
+  max_save_val_output: 16
+  renderer_output_types: null
   mlp_cfg:
     use: true
     sch: false
     lr: 0.005
     weight_decay: 0
     milestones: []
-    gamma: 0.5
+    gamma: 0.5    
+  log_cfg:
+    log: true
+    step: 50
+
+  gaussian:
+    init_args:
+      sh_degree: 3
   save_iterations: []
   renderer:
     class_path: internal.renderers.ciga_trim_renderer.CigaTrimRenderer
@@ -22,7 +30,7 @@ model:
       diable_trimming: false      # 끄고 싶으면 true
 
 trainer:
-  val_check_interval: 0.25
+  check_val_every_n_epoch: 3
   max_steps: 30000
 
 data:

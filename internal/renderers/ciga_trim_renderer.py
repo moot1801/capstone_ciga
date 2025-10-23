@@ -6,15 +6,8 @@ import math
 from .renderer import *
 
 from .vanilla_renderer import VanillaRenderer
-#from typing import Any
 from ..cameras import Camera
 from ..models.gaussian import GaussianModel
-# from __future__ import annotations
-# from typing import TYPE_CHECKING
-
-# if TYPE_CHECKING:
-#     from ..cameras import Camera
-#     from ..models.gaussian import GaussianModel
 from internal.utils.sh_utils import eval_sh
 from diff_trim_gaussian_rasterization import GaussianRasterizationSettings, GaussianRasterizer
 from internal.renderers.ciga_renderer2 import CigaRenderer
@@ -46,8 +39,8 @@ class CigaTrimRenderer(CigaRenderer):
 
     def forward(
             self,
-            viewpoint_camera: "Camera",
-            pc: "GaussianModel",
+            viewpoint_camera: Camera,
+            pc: GaussianModel,
             bg_color: torch.Tensor,
             scaling_modifier=1.0,
             override_color=None,
@@ -79,12 +72,11 @@ class CigaTrimRenderer(CigaRenderer):
         screenspace_points = torch.zeros_like(pc.get_xyz, dtype=pc.get_xyz.dtype, requires_grad=True,
                                               device=bg_color.device) + 0
         
-        #------------------------------------------------
         try:
             screenspace_points.retain_grad()
         except:
             pass
-        #------------------------------------------------
+    
         # Set up rasterization configuration
         tanfovx = math.tan(viewpoint_camera.fov_x * 0.5)
         tanfovy = math.tan(viewpoint_camera.fov_y * 0.5)
