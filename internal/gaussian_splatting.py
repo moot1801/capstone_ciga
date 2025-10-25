@@ -34,7 +34,9 @@ from internal.utils.graphics_utils import store_ply
 
 #ciga
 from internal.models.ciga_mlp import CigaMLP
-from log import log_weight_stats, nuke_dir
+from internal.renderers.ciga_trim_renderer import CigaRenderer
+from log import log_weight_stats, nuke_dir, print_to
+from pathlib import Path
 
 class GaussianSplatting(LightningModule):
     def __init__(
@@ -70,14 +72,14 @@ class GaussianSplatting(LightningModule):
         self.frozen_gaussians = None
         
         # setup log
-        self.log_cfg = self.hparams['log_cfg']
+        self.log_cfg = self.hparams['log_cfg'] or {}
         self.logs = {
             'log':bool(self.log_cfg.get('log', False)),
             'step':int(self.log_cfg.get('step', 50)),
         }
 
         # setup MLP
-        self.mlp_cfg = self.hparams['mlp_cfg']
+        self.mlp_cfg = self.hparams['mlp_cfg'] or {}
         self.mlp = bool(self.mlp_cfg.get('use', False))
         self.sch = bool(self.mlp_cfg.get('sch', False))
         self.mlp_options = {
@@ -86,15 +88,29 @@ class GaussianSplatting(LightningModule):
             'mlp_milestones' : self.mlp_cfg.get('milestones', []),
             'mlp_gamma' : float(self.mlp_cfg.get('gamma', 0.5)),    
         }
+        raw_path = self.mlp_cfg.get('path')          
+        self.mlp_train = bool(self.mlp_cfg.get('train', True))
+        self.mlp_path = None
+        if raw_path:
+            self.mlp_path = Path(raw_path).expanduser().resolve()
+            if not self.mlp_path.exists():
+                raise FileNotFoundError(f"[mlp_cfg.path] not found: {self.mlp_path}")
 
         if self.mlp:
             self.mlp_model = CigaMLP.instantiate(
                 in_features=7,
                 sh_max_degree = self.gaussian_model.get_max_sh_degree()
             )
-        else: 
-            self.mlp_model = None
-
+            # [YAML]/ mlp_cfg: path:  
+            # Load MLP Model
+            if self.mlp_path is not None:
+                params = torch.load(self.mlp_path)
+                self.mlp_model.load_state_dict(params, strict=self.mlp_cfg.get('strict', True))
+                for p in self.mlp_model.parameters():
+                    p.requires_grad_(False)
+                self.mlp_model.eval()
+        else:
+            self.mlp_model=None
 
         self.light_gaussian_hparams = light_gaussian
 
@@ -209,18 +225,18 @@ class GaussianSplatting(LightningModule):
         self.renderer.setup(stage=stage, lightning_module=self)
         self.metric.setup(stage=stage, pl_module=self)
         self.density_controller.setup(stage=stage, pl_module=self)
-
-        if self.mlp:
-            self.renderer.set_mlp(self.mlp_model)
-        else:
-            self.renderer.set_mlp(None)
-        
-        if self.logs['log']:
-            self.renderer.set_log(True)
-            self.hparams["save_val_output"]=True
-            nuke_dir(recreate=True)
-        else:
-            self.renderer.set_log(False)
+        if isinstance(self.renderer, CigaRenderer):
+            if self.mlp:
+                self.renderer.set_mlp(self.mlp_model, self.mlp_train)
+            else:
+                self.renderer.set_mlp(None, self.mlp_train)
+            
+            if self.logs['log']:
+                self.renderer.set_log(True)
+                self.hparams["save_val_output"]=True
+                nuke_dir(recreate=True)
+            else:
+                self.renderer.set_log(False)
             
         # use different image log method based on the logger type
         self.log_image = None
@@ -750,7 +766,7 @@ class GaussianSplatting(LightningModule):
         # metric optimizer and scheduler setup
         metric_optimizer, metric_scheduler = self.metric.training_setup(self)
         add_optimizers_and_schedulers(metric_optimizer, metric_scheduler)
-        if self.mlp:
+        if self.mlp and self.mlp_train:
             mlp_optimizer = torch.optim.Adam(
                 self.mlp_model.parameters(), 
                 lr=self.mlp_options['mlp_lr'], 

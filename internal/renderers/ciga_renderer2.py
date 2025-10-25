@@ -142,8 +142,9 @@ class CigaRenderer(Renderer):
             "radii": radii,
         }
 
-    def set_mlp(self, mlp: nn.Module):
+    def set_mlp(self, mlp: nn.Module, mlp_train):
         self.mlp_model = mlp
+        self.mlp_train = mlp_train
 
     @staticmethod
     def render(
@@ -261,9 +262,11 @@ class CigaRenderer(Renderer):
             if self.logging:
                 print_to("input.txt",f"\ncam_pos :{d['cam_pos'][:10,:10]}\ncam-gaus: {d['dis'][:10,:10]}\ncam_dir: {d['dir'][:10,:10]}")
             x = torch.cat([d['cam_pos'], d['dis'], d['dir']], dim=1)
-        
-            sh_weight = self.mlp_model(x)
-
+            if self.mlp_train:
+                sh_weight = self.mlp_model(x)
+            else:
+                with torch.no_grad():
+                    sh_weight = self.mlp_model(x)
         else:
             print("CR_shs_weght_MLP")
         
