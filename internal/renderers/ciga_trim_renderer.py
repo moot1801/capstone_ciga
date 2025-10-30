@@ -23,6 +23,8 @@ class CigaTrimRenderer(CigaRenderer):
             contribution_prune_from_iter : int = 1000,
             contribution_prune_interval: int = 500,
             diable_trimming: bool = False,
+            logging: bool=False,
+            mlp_train: bool=False,
             ):
         super().__init__(
             compute_cov3D_python=compute_cov3D_python,
@@ -131,6 +133,10 @@ class CigaTrimRenderer(CigaRenderer):
             colors_precomp = override_color
 
         if not record_transmittance:
+            if not hasattr(self, "logging"):
+                self.logging=False
+            if not hasattr(self, "mlp_train"):
+                self.mlp_train=False
             shs = super().shs_weight_MLP(
                 rasterizer,
                 shs,

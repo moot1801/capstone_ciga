@@ -181,7 +181,7 @@ class GaussianSplatting(LightningModule):
 
         from internal.utils.gaussian_model_loader import GaussianModelLoader
         load_from = GaussianModelLoader.search_load_file(self.hparams["initialize_from"])
-
+        
         # TODO: may be should adapt sh_degree of ply or checkpoint to current value?
         if load_from.endswith(".ply") is True:
             from internal.utils.gaussian_utils import Gaussian as GaussianUtils
@@ -222,6 +222,10 @@ class GaussianSplatting(LightningModule):
             if self.hparams["save_val_metrics"] is None:
                 self.hparams["save_val_metrics"] = True
 
+        #ciga
+        if self.hparams["max_save_val_output"] > 0:
+            self.hparams["save_val_output"]=True
+
         self.renderer.setup(stage=stage, lightning_module=self)
         self.metric.setup(stage=stage, pl_module=self)
         self.density_controller.setup(stage=stage, pl_module=self)
@@ -233,7 +237,6 @@ class GaussianSplatting(LightningModule):
             
             if self.logs['log']:
                 self.renderer.set_log(True)
-                self.hparams["save_val_output"]=True
                 nuke_dir(recreate=True)
             else:
                 self.renderer.set_log(False)

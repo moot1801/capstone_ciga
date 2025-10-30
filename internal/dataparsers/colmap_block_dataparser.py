@@ -74,6 +74,7 @@ class ColmapBlockDataParser(ColmapDataParser):
                 self.params.block_dim[1],
                 self.params.content_threshold,
             ), "{:03d}_{:03d}.txt".format(block_id_x, block_id_y))
+
             with open(self.params.image_list, "r") as f:
                 for image_name in f:
                     image_name = image_name[:-1]
