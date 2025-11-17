@@ -134,7 +134,7 @@ if __name__ == "__main__":
     parser.add_argument("--project_name", "-p", type=str, required=True)
     parser.add_argument("--dry-run", action="store_true", default=False)
 
-    MIN_FREE_MIB = 13500
+    MIN_FREE_MIB = 16500
 
     args, training_and_srun_args = parser_stoppable_args(parser)
     training_args, srun_args = split_stoppable_args(training_and_srun_args)
@@ -143,7 +143,7 @@ if __name__ == "__main__":
     with open(config_path, 'r') as f:
         config = parse(yaml.load(f, Loader=yaml.FullLoader))
     num_blocks = config.data.parser.init_args.block_dim[0] * config.data.parser.init_args.block_dim[1]
-
+    
     if len(srun_args) == 0:
         with ProcessPoolExecutor(max_workers=num_blocks) as executor:
             for block_id in range(num_blocks):
@@ -168,7 +168,7 @@ if __name__ == "__main__":
 
                 executor.submit(train_a_partition, args, training_args, srun_args, block_id, np.argmax(selected_gpu))
 
-                subprocess.run(["sleep", "10"])
+                subprocess.run(["sleep", "60"])
     else:
         print("SLURM mode enabled")
         trainable_partition_idx_list = list(range(num_blocks))

@@ -60,12 +60,28 @@ if __name__ == "__main__":
     model.freeze()
     model.pre_activate_all_properties()
     # initialize renderer
-    renderer = GaussianModelLoader.initialize_renderer_from_checkpoint(
-        ckpt,
-        stage="validate",
-        device=device,
-    )
+    # renderer = GaussianModelLoader.initialize_renderer_from_checkpoint(
+    #     ckpt,
+    #     stage="validate",
+    #     device=device,
+    # )
+    if hasattr(config.model, "partition_renderer"):
+        pr_cfg = config.model.partition_renderer   # Namespace(class_path=..., init_args=Namespace(...))
+        module_path, cls_name = pr_cfg.class_path.rsplit(".", 1)
+
+        import importlib
+        mod = importlib.import_module(module_path)
+        RendererClass = getattr(mod, cls_name)
+
+        init_args = vars(pr_cfg.init_args) if hasattr(pr_cfg, "init_args") else {}
+        renderer = RendererClass(**init_args)
+    else:
+        renderer = GaussianModelLoader.initialize_renderer_from_checkpoint(
+            ckpt, stage="validate", device=device
+        )
+    print(renderer)
     print("Gaussian count: {}".format(model.get_xyz.shape[0]))
+
 
     # initialize dataset
     dataparser_config = ckpt["datamodule_hyper_parameters"]["parser"]
